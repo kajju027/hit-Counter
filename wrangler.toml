@@ -1,0 +1,7 @@
+name = "hit-counter"
+main = "src/index.js"
+compatibility_date = "2025-01-10"
+
+kv_namespaces = [
+  { binding = "HITCOUNTER", id = "079194e783cb45cf9f40189fe94e6301" }
+]
