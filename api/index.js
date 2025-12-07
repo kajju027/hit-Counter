@@ -53,7 +53,7 @@ export default async function handler(request, response) {
 
 // ---------------- Firebase Helpers ----------------
 
-const FIREBASE_URL = "https://hit-counters-default-rtdb.firebaseio.com/";
+const FIREBASE_URL = "https://hit-counter-a4063-default-rtdb.firebaseio.com/";
 
 async function firebaseGet(path) {
   const res = await fetch(FIREBASE_URL + path);
