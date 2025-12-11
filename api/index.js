@@ -1,22 +1,29 @@
-import { URL } from "url"; // Node.js এ এটি প্রয়োজন
+// api/index.js
 
+import { URL } from "url";
+
+// FIREBASE_URL Render-এর এনভায়রনমেন্ট ভেরিয়েবল থেকে আসবে
 const FIREBASE_URL = process.env.FIREBASE_URL;
 
 // ----------------- Main Handler -----------------
 
 export default async function handler(request, response) {
-  // request.headers.host Vercel এ কাজ করত। Polka-তে এটি URL অবজেক্ট থেকে নেওয়া যায়।
-  // তবে Vercel ফাংশনটি Node.js এর সাথে মানিয়ে চলার জন্য এটিকে ধরে রাখছি।
+  // request.headers.host সঠিকভাবে URL তৈরি করতে সাহায্য করে
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
   const origin = request.headers.origin || "*";
 
-  // CORS Preflight
+  // CORS Preflight হ্যান্ডলিং
   if (request.method === "OPTIONS") {
     return sendCors(response, origin);
   }
 
   const key = url.searchParams.get("key") || "default";
   const uniqueMode = url.searchParams.get("unique") === "1";
+  
+  // IP Address নির্ণয় (Render এর জন্য 'x-real-ip' বা 'x-forwarded-for' ব্যবহার করে)
+  const ip = request.headers["x-real-ip"] ||
+             request.headers["x-forwarded-for"] ||
+             "0.0.0.0";
 
   if (url.pathname.startsWith("/api/get")) {
     const data = await getCountsFirebase(key);
@@ -24,10 +31,7 @@ export default async function handler(request, response) {
   }
 
   if (url.pathname.startsWith("/api/hit")) {
-    const ip = request.headers["x-real-ip"] ||
-               request.headers["x-forwarded-for"] ||
-               "0.0.0.0";
-
+    
     let uniqueInc = 1;
     if (uniqueMode) {
       const day = new Date().toISOString().slice(0, 10);
@@ -40,7 +44,7 @@ export default async function handler(request, response) {
 
     const totalPath = `counters/${key}/total.json`;
     const uniquePath = `counters/${key}/unique.json`;
-    const updatedPath = `counters/${key}/updated_at.json`; // Firebase এ update করার জন্য
+    const updatedPath = `counters/${key}/updated_at.json`; 
 
     const totalValue = (await firebaseGet(totalPath)) || 0;
     const uniqueValue = (await firebaseGet(uniquePath)) || 0;
@@ -67,7 +71,9 @@ export default async function handler(request, response) {
 async function firebaseGet(path) {
   const res = await fetch(FIREBASE_URL + path);
   if (!res.ok) return null;
-  return res.json();
+  const text = await res.text();
+  // Firebase-এ ডেটা না থাকলে response টেক্সট "null" আসে
+  return text === 'null' ? null : JSON.parse(text);
 }
 
 async function firebasePut(path, value) {
@@ -95,9 +101,9 @@ async function getCountsFirebase(key) {
 }
 
 
-// ---------------- Utils (Polka/Node.js Compatible) ----------------
+// ---------------- Utils (Node.js/Polka Compatible) ----------------
 
-// Vercel-এর Express-like .status().end() এর বদলে Node.js-এর .writeHead() এবং .end() ব্যবহার করা হয়েছে
+// Node.js এর response অবজেক্ট ব্যবহার করে CORS হেডার সেট করা
 function sendCors(response, origin) {
   const headers = {
     "Access-Control-Allow-Origin": origin,
@@ -105,11 +111,11 @@ function sendCors(response, origin) {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
   };
-  response.writeHead(204, headers); // 204 No Content for preflight
+  response.writeHead(204, headers); 
   response.end();
 }
 
-// Vercel-এর Express-like .status().json() এর বদলে Node.js-এর .writeHead() এবং .end(JSON.stringify) ব্যবহার করা হয়েছে
+// JSON ডেটা পাঠানো
 function sendJSON(response, data, origin) {
   const headers = {
     "Content-Type": "application/json",
