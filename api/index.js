@@ -7,7 +7,7 @@ export default async function handler(request, response) {
   if (!FIREBASE_DATABASE_URL || !FIREBASE_SECRET_TOKEN) {
     return sendJSON(
       response,
-      { error: "Firebase Secret or URL is missing in Render Environment Variables." },
+      { error: "Firebase configuration is missing in Render Environment Variables." },
       "*",
       500
     );
@@ -46,7 +46,11 @@ export default async function handler(request, response) {
       return sendJSON(response, data, origin, 429);
     }
 
-    await firebasePut(rateLimitPath, currentTime);
+    try {
+      await firebasePut(rateLimitPath, currentTime);
+    } catch (e) {
+      return sendJSON(response, { error: "Failed to write rate limit data to Firebase." }, "*", 500);
+    }
 
     let uniqueInc = 1;
     if (uniqueMode) {
@@ -54,7 +58,13 @@ export default async function handler(request, response) {
       const uniquePath = `unique/${key}/${day}/${safeIp}.json`;
       const exists = await firebaseGet(uniquePath);
       if (exists) uniqueInc = 0;
-      else await firebasePut(uniquePath, true);
+      else {
+        try {
+          await firebasePut(uniquePath, true);
+        } catch (e) {
+          uniqueInc = 0;
+        }
+      }
     }
 
     const totalPath = `counters/${key}/total.json`;
@@ -67,9 +77,13 @@ export default async function handler(request, response) {
     const newTotal = totalValue + 1;
     const newUnique = uniqueValue + uniqueInc;
 
-    await firebasePut(totalPath, newTotal);
-    await firebasePut(uniqueCountPath, newUnique);
-    await firebasePut(updatedPath, new Date().toISOString());
+    try {
+      await firebasePut(totalPath, newTotal);
+      await firebasePut(uniqueCountPath, newUnique);
+      await firebasePut(updatedPath, new Date().toISOString());
+    } catch (e) {
+      return sendJSON(response, { error: "Failed to increment hit counter in Firebase." }, "*", 500);
+    }
 
     const data = await getCountsFirebase(key);
     return sendJSON(response, data, origin);
@@ -86,11 +100,13 @@ async function firebaseGet(path) {
 
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return null;
+    }
     const text = await res.text();
     return text === "null" ? null : JSON.parse(text);
   } catch (e) {
-    throw e;
+    return null;
   }
 }
 
@@ -99,14 +115,18 @@ async function firebasePut(path, value) {
   const url =
     FIREBASE_DATABASE_URL.replace(/\/$/, "") + "/" + path + authQuery;
 
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(value),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(value),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Firebase PUT failed with status ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`Firebase PUT failed with status ${res.status}`);
+    }
+  } catch (e) {
+    throw e;
   }
 }
 
@@ -149,5 +169,6 @@ function formatNum(n) {
   if (n < 1000) return n.toString();
   if (n < 10000) return (n / 1000).toFixed(1) + "K";
   if (n < 1000000) return Math.round(n / 1000) + "K";
-  return (n / 1000000).toFixed(1) + "Mi";
+  return (n / 1000000).toFixed(1) + "M";
 }
+
