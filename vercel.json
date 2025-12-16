@@ -9,5 +9,28 @@
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/404",
+      "status": 404
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/get",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=60, s-maxage=60"
+        },
+        {
+          "key": "Vercel-CDN-Cache",
+          "value": "max-age=60"
+        }
+      ]
+    }
   ]
 }
+
