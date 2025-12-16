@@ -4,6 +4,7 @@ import handler from './api/index.js';
 
 const app = polka();
 const PORT = process.env.PORT || 3000;
+
 app.all('/api/hit', (req, res) => handler(req, res));
 app.all('/api/get', (req, res) => handler(req, res));
 app.get('/', (req, res) => {
@@ -13,5 +14,6 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, err => {
   if (err) throw err;
-  console.log(`> Running on localhost:${PORT}`);
+  //  Render-505
 });
+
